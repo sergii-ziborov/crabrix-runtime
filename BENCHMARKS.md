@@ -35,8 +35,10 @@ not a whole-app, device, Cargo, peak-RSS, thermal, or p95 claim. A profiling
 sample identified repeated whole-memory copies during `memory.grow`; the
 reserved path commits pages in place while keeping the same software bounds
 and `ResourceLimiter` checks. The sample included local host paths and is not
-published verbatim. The candidate passed three reserved-memory Swift tests,
-eight selected app compiler/sandbox gates, and a fresh-source compile/Run gate.
+published verbatim. The measured source commit passed three reserved-memory
+Swift tests, eight selected app compiler/sandbox gates, and a fresh-source
+compile/Run gate. A later safety commit adds a fourth test and prevents direct
+dispatch with software bounds; it requires its own app benchmark.
 
 The 0.3.1 A and clean 0.4.1 B device baselines remain outstanding. The
 `swift test` fuel and adapter results are correctness tests, not speed

@@ -50,6 +50,14 @@ public final class Engine {
             configuration.memoryBoundsChecking = .software
         }
 
+        // The direct dispatcher can return from an out-of-bounds load instead
+        // of trapping with software memory checks on optimized arm64 builds.
+        // Keep the direct path for mprotect and use the checked token path for
+        // software memory, including platforms where mprotect is unavailable.
+        if configuration.memoryBoundsChecking == .software {
+            configuration.threadingModel = .token
+        }
+
         self.configuration = configuration
         self.interceptor = interceptor
         self.funcTypeInterner = Interner()

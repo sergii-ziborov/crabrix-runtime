@@ -68,6 +68,27 @@ import WAT
         #expect(try read() == [.i32(0)])
     }
 
+    @Test func directRequestStillTrapsUnderSoftwareBounds() throws {
+        let module = try parseWasm(bytes: wat2wasm("""
+            (module
+              (memory 1)
+              (func (export "read") (result i32) (i32.load (i32.const 65536))))
+            """))
+        let engine = Engine(configuration: .init(
+            threadingModel: .direct,
+            memoryBoundsChecking: .software,
+            softwareMemoryReservationBytes: 4 * Self.page
+        ))
+        guard case .token = engine.configuration.threadingModel else {
+            Issue.record("software bounds must select the token dispatcher")
+            return
+        }
+        let store = Store(engine: engine)
+        let instance = try module.instantiate(store: store)
+        let read = try #require(instance.exports[function: "read"])
+        #expect(throws: Trap.self) { try read() }
+    }
+
     @Test func reservationDoesNotBypassResourceLimiter() throws {
         final class TwoPageLimiter: ResourceLimiter {
             func limitMemoryGrowth(to desired: Int) throws -> Bool {
