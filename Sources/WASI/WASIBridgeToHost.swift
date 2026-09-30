@@ -29,10 +29,14 @@ public final class WASIBridgeToHost: Sendable {
     public struct Preopen: Sendable {
         public let guestPath: String
         public let hostPath: String
+        /// Deny mutation through this descriptor and every directory opened below it.
+        /// Supported by the host file system; custom implementations must opt in.
+        public let readOnly: Bool
 
-        public init(guestPath: String, hostPath: String) {
+        public init(guestPath: String, hostPath: String, readOnly: Bool = false) {
             self.guestPath = guestPath
             self.hostPath = hostPath
+            self.readOnly = readOnly
         }
     }
 
@@ -134,7 +138,20 @@ public final class WASIBridgeToHost: Sendable {
             var options = self
             options.initializePreopens = { fileSystem, fdTable in
                 for preopen in preopens {
-                    let dirEntry = try fileSystem.preopenDirectory(guestPath: preopen.guestPath, hostPath: preopen.hostPath)
+                    let dirEntry: any WASIDir
+                    if preopen.readOnly {
+                        guard let host = fileSystem as? HostFileSystem else {
+                            throw WASIError(description: "Read-only preopens require the host file system")
+                        }
+                        dirEntry = try host.preopenDirectory(
+                            guestPath: preopen.guestPath, hostPath: preopen.hostPath,
+                            readOnly: true
+                        )
+                    } else {
+                        dirEntry = try fileSystem.preopenDirectory(
+                            guestPath: preopen.guestPath, hostPath: preopen.hostPath
+                        )
+                    }
                     _ = try fdTable.push(.directory(dirEntry))
                 }
             }

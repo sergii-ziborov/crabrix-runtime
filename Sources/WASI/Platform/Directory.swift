@@ -3,9 +3,27 @@ import WasmTypes
 struct DirEntry {
     let preopenPath: String?
     let fd: FileDescriptor
+    let readOnly: Bool
+
+    init(preopenPath: String?, fd: FileDescriptor, readOnly: Bool = false) {
+        self.preopenPath = preopenPath
+        self.fd = fd
+        self.readOnly = readOnly
+    }
 }
 
 extension DirEntry: WASIDir, FdWASIEntry {
+    func setTimes(
+        atim: WASIAbi.Timestamp, mtim: WASIAbi.Timestamp,
+        fstFlags: WASIAbi.FstFlags
+    ) throws {
+        guard !readOnly else { throw WASIAbi.Errno.ENOTCAPABLE }
+        let (access, modification) = try WASIAbi.Timestamp.platformTimeSpec(
+            atim: atim, mtim: mtim, fstFlags: fstFlags
+        )
+        try fd.setTimes(access: access, modification: modification)
+    }
+
     func readlink(atPath path: String) throws -> [UInt8] {
         // Capability checking is owned by `SandboxPrimitives.readlinkAt`.
         try SandboxPrimitives.readlinkAt(start: fd, path: path)
@@ -79,6 +97,7 @@ extension DirEntry: WASIDir, FdWASIEntry {
         atim: WASIAbi.Timestamp, mtim: WASIAbi.Timestamp,
         fstFlags: WASIAbi.FstFlags, symlinkFollow: Bool
     ) throws {
+        guard !readOnly else { throw WASIAbi.Errno.ENOTCAPABLE }
         let fd = try openFile(
             symlinkFollow: symlinkFollow, path: path,
             oflags: [], accessMode: .write, fdflags: []
@@ -94,6 +113,7 @@ extension DirEntry: WASIDir, FdWASIEntry {
     }
 
     func removeFile(atPath path: String) throws {
+        guard !readOnly else { throw WASIAbi.Errno.ENOTCAPABLE }
         let result = try SandboxPrimitives.openParent(start: fd, path: path)
         try result.withFields { dir, basename in
             try dir.remove(at: basename, options: [])
@@ -101,6 +121,7 @@ extension DirEntry: WASIDir, FdWASIEntry {
     }
 
     func removeDirectory(atPath path: String) throws {
+        guard !readOnly else { throw WASIAbi.Errno.ENOTCAPABLE }
         let path = SandboxPrimitives.stripDirSuffix(path)
         let result = try SandboxPrimitives.openParent(start: fd, path: path)
         try result.withFields { dir, basename in
@@ -109,6 +130,7 @@ extension DirEntry: WASIDir, FdWASIEntry {
     }
 
     func symlink(from sourcePath: String, to destPath: String) throws {
+        guard !readOnly else { throw WASIAbi.Errno.ENOTCAPABLE }
         let result = try SandboxPrimitives.openParent(
             start: fd, path: destPath
         )
@@ -121,6 +143,7 @@ extension DirEntry: WASIDir, FdWASIEntry {
         guard let newDir = newDir as? Self else {
             throw WASIAbi.Errno.EBADF
         }
+        guard !readOnly, !newDir.readOnly else { throw WASIAbi.Errno.ENOTCAPABLE }
 
         // As a special case, rename ignores a trailing slash rather than treating
         // it as equivalent to a trailing slash-dot, so strip any trailing slashes
@@ -212,6 +235,7 @@ extension DirEntry: WASIDir, FdWASIEntry {
     }
 
     func createDirectory(atPath path: String) throws {
+        guard !readOnly else { throw WASIAbi.Errno.ENOTCAPABLE }
         let result = try SandboxPrimitives.openParent(start: fd, path: path)
         try result.withFields { dir, basename in
             try dir.createDirectory(at: basename, permissions: .ownerReadWriteExecute)

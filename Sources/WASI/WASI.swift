@@ -540,6 +540,22 @@ import WasmTypes
             .FD_FILESTAT_SET_TIMES,
             .POLL_FD_READWRITE,
         ])
+
+        public static let READ_ONLY_DIRECTORY_BASE_RIGHTS: Rights = [
+            .PATH_OPEN,
+            .FD_READDIR,
+            .PATH_READLINK,
+            .PATH_FILESTAT_GET,
+            .FD_FILESTAT_GET,
+        ]
+
+        public static let READ_ONLY_DIRECTORY_INHERITING_RIGHTS: Rights =
+            READ_ONLY_DIRECTORY_BASE_RIGHTS.union([
+                .FD_READ,
+                .FD_SEEK,
+                .FD_TELL,
+                .FD_ADVISE,
+            ])
     }
 
     /// A reference to the offset of a directory entry.
@@ -1016,12 +1032,14 @@ final class WASIImplementation: Sendable {
         switch entry {
         case .file(let entry):
             return try entry.fdStat()
-        case .directory:
+        case .directory(let entry):
+            let readOnly = (entry as? DirEntry)?.readOnly == true
             return WASIAbi.FdStat(
                 fsFileType: .DIRECTORY,
                 fsFlags: [],
-                fsRightsBase: .DIRECTORY_BASE_RIGHTS,
-                fsRightsInheriting: .DIRECTORY_INHERITING_RIGHTS
+                fsRightsBase: readOnly ? .READ_ONLY_DIRECTORY_BASE_RIGHTS : .DIRECTORY_BASE_RIGHTS,
+                fsRightsInheriting: readOnly
+                    ? .READ_ONLY_DIRECTORY_INHERITING_RIGHTS : .DIRECTORY_INHERITING_RIGHTS
             )
         case .none:
             throw WASIAbi.Errno.EBADF

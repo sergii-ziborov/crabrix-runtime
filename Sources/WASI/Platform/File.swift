@@ -55,6 +55,9 @@ extension FdWASIFile {
     @inlinable
     func pwrite(vectored buffers: GuestBuffers, offset: WASIAbi.FileSize) throws -> WASIAbi.Size {
         // TODO: Use `pwritev`
+        guard accessMode.contains(.write) else {
+            throw WASIAbi.Errno.EBADF
+        }
         var currentOffset = try WASIAbi.hostOffset(offset)
         for index in 0..<buffers.count {
             currentOffset += Int64(
@@ -105,6 +108,29 @@ extension FdWASIFile {
 struct RegularFileEntry: FdWASIFile {
     let fd: FileDescriptor
     let accessMode: FileAccessMode
+    let readOnlySource: Bool
+
+    init(fd: FileDescriptor, accessMode: FileAccessMode, readOnlySource: Bool = false) {
+        self.fd = fd
+        self.accessMode = accessMode
+        self.readOnlySource = readOnlySource
+    }
+
+    func setFilestatSize(_ size: WASIAbi.FileSize) throws {
+        guard !readOnlySource else { throw WASIAbi.Errno.ENOTCAPABLE }
+        try fd.truncate(size: WASIAbi.hostOffset(size))
+    }
+
+    func setTimes(
+        atim: WASIAbi.Timestamp, mtim: WASIAbi.Timestamp,
+        fstFlags: WASIAbi.FstFlags
+    ) throws {
+        guard !readOnlySource else { throw WASIAbi.Errno.ENOTCAPABLE }
+        let (access, modification) = try WASIAbi.Timestamp.platformTimeSpec(
+            atim: atim, mtim: mtim, fstFlags: fstFlags
+        )
+        try fd.setTimes(access: access, modification: modification)
+    }
 }
 
 extension FdWASIFile {

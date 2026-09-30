@@ -12,6 +12,10 @@ final class HostFileSystem: FileSystemImplementation, Sendable {
     // MARK: - FileSystemImplementation (WASI API)
 
     func preopenDirectory(guestPath: String, hostPath: String) throws -> any WASIDir {
+        try preopenDirectory(guestPath: guestPath, hostPath: hostPath, readOnly: false)
+    }
+
+    func preopenDirectory(guestPath: String, hostPath: String, readOnly: Bool) throws -> any WASIDir {
         let fd: FileDescriptor
         do {
             fd = try FileDescriptor.openPreopenDirectory(hostPath)
@@ -27,7 +31,7 @@ final class HostFileSystem: FileSystemImplementation, Sendable {
             throw CleanupFailure.preserving(error, cleanup: fd.close)
         }
 
-        return DirEntry(preopenPath: guestPath, fd: fd)
+        return DirEntry(preopenPath: guestPath, fd: fd, readOnly: readOnly)
     }
 
     func openAt(
@@ -50,6 +54,12 @@ final class HostFileSystem: FileSystemImplementation, Sendable {
         guard let dirFd = dirFd as? DirEntry else {
             throw WASIAbi.Errno.EBADF
         }
+        if dirFd.readOnly && (
+            accessMode.contains(.write) || oflags.contains(.CREAT) ||
+            oflags.contains(.TRUNC) || fdflags.contains(.APPEND)
+        ) {
+            throw WASIAbi.Errno.ENOTCAPABLE
+        }
         let hostFd = try dirFd.openFile(
             symlinkFollow: symlinkFollow,
             path: path,
@@ -64,9 +74,11 @@ final class HostFileSystem: FileSystemImplementation, Sendable {
         }
 
         if actualFileType.isDirectory {
-            return .directory(DirEntry(preopenPath: nil, fd: hostFd))
+            return .directory(DirEntry(preopenPath: nil, fd: hostFd, readOnly: dirFd.readOnly))
         } else {
-            return .file(RegularFileEntry(fd: hostFd, accessMode: accessMode))
+            return .file(RegularFileEntry(
+                fd: hostFd, accessMode: accessMode, readOnlySource: dirFd.readOnly
+            ))
         }
     }
 
