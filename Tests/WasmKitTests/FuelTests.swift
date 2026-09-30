@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 import WAT
 import WasmParser
@@ -10,6 +11,31 @@ import WasmParser
 /// moves them should fail here and be explained, not re-blessed.
 @Suite
 struct FuelTests {
+    private final class CountingCancellation: ExecutionCancellation, @unchecked Sendable {
+        private let lock = NSLock()
+        private let stopAfter: Int?
+        private var reads = 0
+
+        init(stopAfter: Int? = nil) { self.stopAfter = stopAfter }
+
+        var isCancelled: Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            reads += 1
+            return stopAfter.map { reads >= $0 } ?? false
+        }
+
+        var readCount: Int { lock.withLock { reads } }
+    }
+
+    private static let countedLoop = """
+        (module (func (export "f") (param i32) (result i32)
+            (loop $l
+                (local.set 0 (i32.sub (local.get 0) (i32.const 1)))
+                (br_if $l (local.get 0)))
+            (local.get 0)))
+        """
+
     /// Instantiates `wat` on an engine with fuel metering enabled.
     private static func setUp(
         _ wat: String,
@@ -112,6 +138,41 @@ struct FuelTests {
     }
 
     // MARK: Configuration
+
+    @Test(arguments: [EngineConfiguration.ThreadingModel.token, .direct])
+    func cancellationPollingDoesNotChangeFuelOrResult(
+        threadingModel: EngineConfiguration.ThreadingModel
+    ) throws {
+        func run(interval: UInt8) throws -> (reads: Int, remainingFuel: UInt64) {
+            let (store, f) = try Self.setUp(
+                Self.countedLoop, fuel: 1_000_000, threadingModel: threadingModel)
+            let probe = CountingCancellation()
+            store.cancellationProbe = probe
+            store.cancellationPollInterval = interval
+            #expect(try f([.i32(1_000)]) == [.i32(0)])
+            return (probe.readCount, try #require(store.fuel).remaining)
+        }
+
+        let everyCheckpoint = try run(interval: 1)
+        let everySixteenth = try run(interval: 16)
+        #expect(everyCheckpoint.reads > 16)
+        #expect(everySixteenth.reads < everyCheckpoint.reads)
+        #expect(everySixteenth.remainingFuel == everyCheckpoint.remainingFuel)
+    }
+
+    @Test(arguments: [EngineConfiguration.ThreadingModel.token, .direct])
+    func cancellationIsObservedWithinTheConfiguredInterval(
+        threadingModel: EngineConfiguration.ThreadingModel
+    ) throws {
+        let (store, f) = try Self.setUp(
+            Self.countedLoop, fuel: 1_000_000, threadingModel: threadingModel)
+        let probe = CountingCancellation(stopAfter: 2)
+        store.cancellationProbe = probe
+        store.cancellationPollInterval = 16
+        #expect(throws: Trap.self) { try f([.i32(1_000)]) }
+        #expect(probe.readCount == 2)
+        #expect(try #require(store.fuel).remaining > 0)
+    }
 
     @Test
     func budgetIsUnlimitedByDefault() throws {

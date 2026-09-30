@@ -32,7 +32,7 @@ extension Execution {
     /// because this instruction is only ever emitted when that configuration asks for metering.
     @inline(__always)
     mutating func consumeFuel(immediate: Instruction.ConsumeFuelOperand) -> FuelTrap? {
-        if _slowPath(store.value.cancellationProbe?.isCancelled == true) {
+        if _slowPath(store.value.isCancellationRequestedAtCheckpoint()) {
             return .outOfFuel
         }
         let fuel = store.value.remainingFuel.address

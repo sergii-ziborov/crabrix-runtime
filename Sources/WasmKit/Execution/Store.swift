@@ -30,7 +30,34 @@ public final class Store {
     public var resourceLimiter: ResourceLimiter = DefaultResourceLimiter()
     /// Checked at existing fuel checkpoints when the engine meters fuel.
     /// The probe must itself be safe to read concurrently.
-    public var cancellationProbe: (any ExecutionCancellation)?
+    public var cancellationProbe: (any ExecutionCancellation)? {
+        didSet { cancellationPollCountdown = 0 }
+    }
+
+    /// Number of fuel checkpoints between cancellation probes. The default
+    /// checks every checkpoint. Embedders can use a larger interval when their
+    /// guest has frequent checkpoints and they have measured Stop latency.
+    /// Fuel is still charged at every checkpoint; bulk operations and host
+    /// calls must continue to enforce their own cancellation bounds.
+    /// A value of zero is treated as one.
+    public var cancellationPollInterval: UInt8 = 1 {
+        didSet {
+            if cancellationPollInterval == 0 { cancellationPollInterval = 1 }
+            cancellationPollCountdown = 0
+        }
+    }
+    private var cancellationPollCountdown: UInt8 = 0
+
+    @inline(__always)
+    func isCancellationRequestedAtCheckpoint() -> Bool {
+        guard let cancellationProbe else { return false }
+        if cancellationPollCountdown != 0 {
+            cancellationPollCountdown &-= 1
+            return false
+        }
+        cancellationPollCountdown = cancellationPollInterval &- 1
+        return cancellationProbe.isCancelled
+    }
 
     /// The remaining fuel. `UInt64.max` means "unlimited".
     ///
