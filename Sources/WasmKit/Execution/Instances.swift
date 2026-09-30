@@ -593,7 +593,7 @@ struct MemoryEntity: ~Copyable {
     private struct MallocStorage {
         var buffer: UnsafeMutableBufferPointer<UInt8>
 
-        init(byteSize: Int, isMemory64: Bool, engineConfiguration: EngineConfiguration) throws(Trap) {
+        init(byteSize: Int) throws(Trap) {
             // The guest picks this size, so an allocation the host cannot satisfy
             // has to be an error rather than an abort.
             guard let storage = FailableAllocation.allocateZeroed(byteCount: byteSize) else {
@@ -643,6 +643,9 @@ struct MemoryEntity: ~Copyable {
             case mprotect(MprotectLinearMemory)
             case shared(SharedMemoryStorage)
         #endif
+        #if (os(macOS) || os(iOS) || os(Linux)) && !$Embedded
+            case reservedSoftware(ReservedSoftwareMemory)
+        #endif
         case malloc(MallocStorage)
 
         init(
@@ -672,7 +675,19 @@ struct MemoryEntity: ~Copyable {
                     }
                 }
             #endif
-            self = .malloc(try MallocStorage(byteSize: initialBytes, isMemory64: isMemory64, engineConfiguration: engineConfiguration))
+            #if (os(macOS) || os(iOS) || os(Linux)) && !$Embedded
+                if engineConfiguration.memoryBoundsChecking == .software,
+                    let reserveLimit = engineConfiguration.softwareMemoryReservationBytes {
+                    let reservationBytes = min(maxBytes, reserveLimit)
+                    if let memory = ReservedSoftwareMemory(
+                        initialBytes: initialBytes, reservationBytes: reservationBytes)
+                    {
+                        self = .reservedSoftware(memory)
+                        return
+                    }
+                }
+            #endif
+            self = .malloc(try MallocStorage(byteSize: initialBytes))
         }
 
         var data: UnsafeBufferPointer<UInt8> {
@@ -680,6 +695,10 @@ struct MemoryEntity: ~Copyable {
             #if (os(macOS) || os(Linux)) && !$Embedded
                 case .mprotect(let memory):
                     return memory.makeBufferPointer()
+            #endif
+            #if (os(macOS) || os(iOS) || os(Linux)) && !$Embedded
+                case .reservedSoftware(let memory):
+                    return memory.data
             #endif
             case .malloc(let buffer):
                 return buffer.data
@@ -699,6 +718,10 @@ struct MemoryEntity: ~Copyable {
                 case .mprotect(let memory):
                     return memory.baseAddress
             #endif
+            #if (os(macOS) || os(iOS) || os(Linux)) && !$Embedded
+                case .reservedSoftware(let memory):
+                    return memory.baseAddress
+            #endif
             case .malloc(let buffer):
                 return buffer.baseAddress
             #if (os(macOS) || os(Linux)) && !$Embedded
@@ -714,6 +737,10 @@ struct MemoryEntity: ~Copyable {
                 case .mprotect(let memory):
                     return memory.committedSize
             #endif
+            #if (os(macOS) || os(iOS) || os(Linux)) && !$Embedded
+                case .reservedSoftware(let memory):
+                    return memory.byteCount
+            #endif
             case .malloc(let buffer):
                 return buffer.byteCount
             #if (os(macOS) || os(Linux)) && !$Embedded
@@ -728,6 +755,10 @@ struct MemoryEntity: ~Copyable {
             #if (os(macOS) || os(Linux)) && !$Embedded
                 case .mprotect(let memory):
                     return memory.reservationSize
+            #endif
+            #if (os(macOS) || os(iOS) || os(Linux)) && !$Embedded
+                case .reservedSoftware:
+                    return 0
             #endif
             case .malloc(let buffer):
                 return buffer.trapGuardReservationSize
@@ -746,6 +777,10 @@ struct MemoryEntity: ~Copyable {
             #if (os(macOS) || os(Linux)) && !$Embedded
                 case .mprotect(let memory):
                     return memory.committedSize
+            #endif
+            #if (os(macOS) || os(iOS) || os(Linux)) && !$Embedded
+                case .reservedSoftware(let memory):
+                    return memory.byteCount
             #endif
             case .malloc(let buffer):
                 return buffer.byteCount
@@ -766,6 +801,26 @@ struct MemoryEntity: ~Copyable {
                     guard let target = try Self.checkGrow(currentBytes: memory.committedSize, by: pageCount, maxPageCount: maxPageCount, resourceLimiter: resourceLimiter) else { return -1 }
                     try memory.grow(to: target.newByteCount)
                     self = .mprotect(memory)
+                    return target.oldPages
+            #endif
+            #if (os(macOS) || os(iOS) || os(Linux)) && !$Embedded
+                case .reservedSoftware(var memory):
+                    guard let target = try Self.checkGrow(currentBytes: memory.byteCount, by: pageCount, maxPageCount: maxPageCount, resourceLimiter: resourceLimiter) else { return -1 }
+                    if target.newByteCount <= memory.reservationBytes {
+                        try memory.grow(to: target.newByteCount)
+                        self = .reservedSoftware(memory)
+                    } else {
+                        // The reservation is an optimization hint, not a new
+                        // semantic memory limit. Preserve data and continue on
+                        // malloc storage when an allowed grow exceeds it.
+                        let replacement = try MallocStorage(byteSize: target.newByteCount)
+                        if memory.byteCount > 0 {
+                            replacement.buffer.baseAddress!.update(
+                                from: memory.data.baseAddress!, count: memory.byteCount)
+                        }
+                        memory.deallocate()
+                        self = .malloc(replacement)
+                    }
                     return target.oldPages
             #endif
             case .malloc(var buffer):
@@ -800,6 +855,10 @@ struct MemoryEntity: ~Copyable {
             switch self {
             #if (os(macOS) || os(Linux)) && !$Embedded
                 case .mprotect(let memory):
+                    memory.deallocate()
+            #endif
+            #if (os(macOS) || os(iOS) || os(Linux)) && !$Embedded
+                case .reservedSoftware(let memory):
                     memory.deallocate()
             #endif
             case .malloc(let buffer):
@@ -864,7 +923,7 @@ struct MemoryEntity: ~Copyable {
     #endif
 
     deinit {
-        // Frees the inline `.mprotect`/`.malloc` backing. `.shared` is a no-op: ARC
+        // Frees the inline `.mprotect`/`.reservedSoftware`/`.malloc` backing. `.shared` is a no-op: ARC
         // releases the ref-counted backing when `storage` is torn down.
         storage.deallocate()
     }

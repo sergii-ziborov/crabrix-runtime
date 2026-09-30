@@ -176,6 +176,13 @@ public struct EngineConfiguration: Sendable {
     /// never metered, which is why this lives on the engine rather than on the store.
     public var fuelMetering: Bool
 
+    /// Optional virtual address reservation for non-shared, software-bounds-checked memories.
+    /// Committed pages still count against the embedder's resource limiter. Reserving address
+    /// space lets `memory.grow` commit new pages without copying the existing linear memory.
+    /// If reservation fails, or a later grow exceeds it, the engine uses malloc storage.
+    /// This does not enable signal-based bounds checking.
+    public var softwareMemoryReservationBytes: Int?
+
     /// FIXME: Make it public once we add mprotect-based bounds checking with JIT.
     /// Extra reserved bytes after the 4 GiB wasm32 address space for future
     /// unchecked constant-offset accesses in JIT code.
@@ -201,6 +208,7 @@ public struct EngineConfiguration: Sendable {
         features: WasmFeatureSet = .default,
         memoryBoundsChecking: MemoryBoundsChecking? = nil,
         fuelMetering: Bool = false,
+        softwareMemoryReservationBytes: Int? = nil,
     ) {
         self.threadingModel = threadingModel ?? .defaultForCurrentPlatform
         self.compilationMode = compilationMode ?? .lazy
@@ -208,6 +216,7 @@ public struct EngineConfiguration: Sendable {
         self.features = features
         self.memoryBoundsChecking = memoryBoundsChecking ?? .defaultForCurrentPlatform
         self.fuelMetering = fuelMetering
+        self.softwareMemoryReservationBytes = softwareMemoryReservationBytes.flatMap { $0 > 0 ? $0 : nil }
     }
 }
 
