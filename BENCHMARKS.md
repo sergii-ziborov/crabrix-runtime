@@ -37,8 +37,34 @@ reserved path commits pages in place while keeping the same software bounds
 and `ResourceLimiter` checks. The sample included local host paths and is not
 published verbatim. The measured source commit passed three reserved-memory
 Swift tests, eight selected app compiler/sandbox gates, and a fresh-source
-compile/Run gate. A later safety commit adds a fourth test and prevents direct
-dispatch with software bounds; it requires its own app benchmark.
+compile/Run gate.
+
+## Safety-gated candidate, same Simulator workload
+
+Source commit `fbe46d928a4592ca274e5fdf07fdbafcf9538868` additionally
+selects token dispatch whenever memory bounds are checked in software. An
+isolated Release test found that the direct dispatcher returned zero for an
+out-of-bounds load instead of trapping; token dispatch trapped as required.
+The full runtime Release suite then passed 462 tests across 15 targets,
+including the new explicit-direct fallback regression. The app passed nine
+selected Release Simulator compiler/sandbox gates on this exact revision,
+including a fresh-source compile/Run, E0502, guided Check, Stop, and memory
+limit gates.
+
+Five more separate Release Simulator warning-Check processes used the same
+compiler and source. The [raw observations](https://github.com/sergii-ziborov/Crabrix/blob/codex/reserved-memory-2026-09-30/docs/performance/2026-09-30-reserved-memory-safety-simulator.json)
+are published with exact app/runtime IDs.
+
+| Check phase | Preceding fork median | Safety-gated median | Ratio |
+| --- | ---: | ---: | ---: |
+| First Check | 1228.261 ms | 859.161 ms | 1.43× |
+| Changed Check | 1143.668 ms | 566.340 ms | 2.02× |
+| Unchanged cached Check | 0.750 ms | 0.836 ms | 0.90× |
+
+The first-Check samples varied more in the safety-gated series. The
+fallback is not credited with a speed improvement; the app was already
+requesting token dispatch in the preceding series. This remains one Simulator
+workload with no physical-device, RSS, thermal, Cargo, or p95 result.
 
 The 0.3.1 A and clean 0.4.1 B device baselines remain outstanding. The
 `swift test` fuel and adapter results are correctness tests, not speed
