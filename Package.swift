@@ -55,6 +55,7 @@ let package = Package(
     products: [
         .executable(name: "wasmkit-cli", targets: ["CLI"]),
         .library(name: "WasmKit", targets: ["WasmKit"]),
+        .library(name: "CrabrixRuntime", targets: ["CrabrixRuntime"]),
         .library(name: "WasmKitWASI", targets: ["WasmKitWASI"]),
         .library(name: "WasmKitWASIThreads", targets: ["WasmKitWASIThreads"]),
         .library(name: "WASI", targets: ["WASI"]),
@@ -80,6 +81,8 @@ let package = Package(
         "Disassembler",
     ],
     targets: [
+        .target(name: "CrabrixRuntime", dependencies: ["WasmKit"], swiftSettings: swiftSettings),
+        .testTarget(name: "CrabrixRuntimeTests", dependencies: ["CrabrixRuntime", "WasmKit"], swiftSettings: swiftSettings),
         cliCommandsTarget,
         cliCommandsTestTarget,
         .executableTarget(
