@@ -8,11 +8,12 @@
 | Typed `Trap.isOutOfFuel` | Preserve budget reason without string matching | App pure-loop budget test | Not measured | Remove if upstream exposes public trap reason |
 | Read-only host WASI preopens | Deny write/truncate/unlink/rename/symlink/timestamp mutation through input mounts and nested descriptors; advertise reduced rights | `ReadOnlyPreopenTests` | Not measured | Propose capability flags upstream; keep until equivalent upstream rights enforcement exists |
 | `pwrite` access-mode check | Reject writes through a descriptor opened without `FD_WRITE` before reaching the host syscall | `ReadOnlyPreopenTests`, existing WASI access-mode suite | Negligible expected; not benchmarked | Propose upstream as a bug fix |
+| Shared bounded stdout/stderr WASI resources | Reject a guest write before the combined capture exceeds its byte budget; prevent seek, positioned write, and truncate bypass; signal the host Stop path | `BoundedStdioTests`, app compiler/user output stress gate pending | Host-call cost not yet measured | Propose an optional bounded stdio wrapper upstream; remove local patch after equivalent API exists |
 | README and provenance documents | Make the fork's origin and supported commands explicit | Link and command smoke | None | Keep with the fork |
 
 No upstream dispatch mode, parser, or memory layout is modified. The
 `@_spi(Fuzzing)` bridge is isolated to one wrapper source file and should be
 removed once upstream exposes a supported resource-limiter setter. Read-only
-WASI rights for compiler source mounts are still an app integration gate; the
-host-backed read-only preopen is now available, but the app must mark its input
-mounts and test the real compiler workload before this gate can be closed.
+WASI rights for compiler source mounts and bounded stdio require app-level
+integration and stress tests with the real compiler workload before their
+release gates can be closed.

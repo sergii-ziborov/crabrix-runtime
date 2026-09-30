@@ -2,7 +2,7 @@
 
 CrabrixRuntime is the [WasmKit](https://github.com/swiftwasm/WasmKit) 0.4.1 fork used to embed WebAssembly in Crabrix's native iPhone and iPad Rust workspace. It keeps the upstream WasmKit modules and history while adding a small `CrabrixRuntime` library for per-execution policy and engine identity.
 
-The current adapter parses immutable modules, creates a fresh `Store` for each invocation, enables WasmKit's fuel metering, and enforces memory and table limits. A thread-safe cancellation probe is checked at those fuel checkpoints, so Stop can interrupt pure-compute guests without a second instruction counter. A guarded WASI link overload checks host calls and leaves sockets unimplemented. It selects token dispatch and software bounds checking, matching the conservative app configuration. Guest process capture remains at the app integration boundary; the compiler and Cargo gates are separate from adapter unit tests.
+The current adapter parses immutable modules, creates a fresh `Store` for each invocation, enables WasmKit's fuel metering, and enforces memory and table limits. A thread-safe cancellation probe is checked at those fuel checkpoints, so Stop can interrupt pure-compute guests without a second instruction counter. A guarded WASI link overload checks host calls and leaves sockets unimplemented. The WASI layer also offers read-only host preopens and a shared hard write budget for stdout/stderr. It selects token dispatch and software bounds checking, matching the conservative app configuration. Guest process capture remains at the app integration boundary; the compiler and Cargo gates are separate from adapter unit tests.
 
 ## Use as a Swift package
 
@@ -30,6 +30,7 @@ Those example limits are the existing user-program values. The compiler host nee
 ```sh
 swift test --filter CrabrixRuntimeTests
 swift test --filter FuelTests
+swift test --filter BoundedStdioTests
 ```
 
 The first command checks the Crabrix adapter; the second runs WasmKit's upstream fuel suite. The app's compiler, Cargo, WASI rights, output quotas, and device performance have separate integration gates documented in [BENCHMARKS.md](BENCHMARKS.md) and [SECURITY.md](SECURITY.md).

@@ -298,6 +298,36 @@ public final class WASIBridgeToHost: Sendable {
         )
     }
 
+    /// Creates a host bridge whose stdout and stderr share a hard write budget.
+    /// Callers retain the borrowed descriptors and close them after the bridge.
+    /// The descriptors should point to empty capture files for the configured
+    /// byte count to also bound the resulting file sizes.
+    public convenience init(
+        args: [String] = [],
+        environment: [String: String] = [:],
+        preopens: [Preopen] = [],
+        stdin: CInt = 0,
+        stdout: CInt,
+        stderr: CInt,
+        outputBudget: WASIOutputBudget,
+        wallClock: WallClock = SystemWallClock(),
+        monotonicClock: MonotonicClock = SystemMonotonicClock(),
+        randomGenerator: RandomBufferGenerator = SystemRandomNumberGenerator()
+    ) throws {
+        try self.init(
+            args: args,
+            environment: environment,
+            fileSystem: .host().withStdio(
+                stdin: StdioFileEntry(fd: FileDescriptor(rawValue: stdin), accessMode: .read),
+                stdout: BoundedStdioFile(fd: FileDescriptor(rawValue: stdout), budget: outputBudget),
+                stderr: BoundedStdioFile(fd: FileDescriptor(rawValue: stderr), budget: outputBudget)
+            ).withPreopens(preopens),
+            wallClock: wallClock,
+            monotonicClock: monotonicClock,
+            randomGenerator: randomGenerator
+        )
+    }
+
     /// Creates a new WASI bridge with custom file system options.
     ///
     private init(

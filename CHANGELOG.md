@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added a shared hard stdout/stderr WASI write budget with typed guest error and
+  host callback when exhausted, plus seek/truncate bypass protection.
+- Added read-only host preopen rights and nested descriptor enforcement.
 - Added a cancellation probe on WasmKit 0.4.1 fuel checkpoints and guarded,
   network-free WASI linking for the Crabrix app adapter.
 - Exposed typed out-of-fuel inspection for app stop reason mapping.
