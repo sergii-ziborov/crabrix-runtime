@@ -33,6 +33,18 @@ public enum RuntimeDiagnostic: Error, Equatable, Sendable {
     case tableLimit
 }
 
+/// Thread-safe user Stop signal, checked by WasmKit's existing fuel checkpoints.
+public final class CancellationToken: ExecutionCancellation, @unchecked Sendable {
+    private let lock = NSLock()
+    private var cancelled = false
+
+    public init() {}
+
+    public var isCancelled: Bool { lock.withLock { cancelled } }
+
+    public func cancel() { lock.withLock { cancelled = true } }
+}
+
 /// Parsed code only. No Store, instance, memory, descriptor, or mutable global is cached here.
 public struct ModuleHandle: Sendable {
     let module: Module
@@ -66,10 +78,11 @@ public final class CrabrixRuntime: @unchecked Sendable {
 
     /// Every invocation receives a fresh Store. Upstream fuel is the sole
     /// instruction budget; Crabrix's former 4096-instruction limiter is absent.
-    public func makeStore(policy: ExecutionPolicy) -> Store {
+    public func makeStore(policy: ExecutionPolicy, cancellation: CancellationToken? = nil) -> Store {
         let store = Store(engine: engine)
         store.resourceLimiter = CrabrixResourceLimiter(policy: policy)
         store.fuel = Fuel(remaining: policy.fuel)
+        store.cancellationProbe = cancellation
         return store
     }
 

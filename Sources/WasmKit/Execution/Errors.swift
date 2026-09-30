@@ -28,6 +28,14 @@ public struct Trap: Error, CustomStringConvertible, Sendable {
     /// The reason for the trap.
     package private(set) var reason: TrapReason
 
+    /// True when an execution budget was exhausted. A caller with a concurrent
+    /// cancellation probe should check that probe first, since Stop uses the
+    /// same fuel-checkpoint trap path.
+    public var isOutOfFuel: Bool {
+        if case .outOfFuel = reason { return true }
+        return false
+    }
+
     /// The backtrace of the trap.
     private(set) var backtrace: Backtrace?
 

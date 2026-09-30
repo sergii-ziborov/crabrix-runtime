@@ -12,6 +12,30 @@ public typealias WASICapability = WASI.WASICapability<Memory>
 
 extension WASIBridgeToHost {
 
+    /// Link network-free WASI capabilities with a guard called before each
+    /// guest host call. Unselected socket imports resolve to `ENOSYS` stubs.
+    public func link(
+        to imports: inout Imports,
+        store: Store,
+        beforeHostCall: @escaping @Sendable () throws -> Void
+    ) {
+        let capabilities: [WASICapability] = [
+            .environment, .clocks, .random, .process, .stdio, .fileSystem, .poll
+        ]
+        let functions = hostFunctions(capabilities: capabilities, stubUnlinked: true)
+        for (name, function) in functions {
+            let implementation = makeHostFunction(function)
+            imports.define(
+                module: "wasi_snapshot_preview1",
+                name: name,
+                Function(store: store, type: function.type, body: { caller, values in
+                    try beforeHostCall()
+                    return try implementation(caller, values)
+                })
+            )
+        }
+    }
+
     /// Register the WASI implementation to the given `imports`.
     ///
     /// - Parameters:

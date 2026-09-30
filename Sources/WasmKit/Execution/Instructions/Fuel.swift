@@ -32,6 +32,9 @@ extension Execution {
     /// because this instruction is only ever emitted when that configuration asks for metering.
     @inline(__always)
     mutating func consumeFuel(immediate: Instruction.ConsumeFuelOperand) -> FuelTrap? {
+        if _slowPath(store.value.cancellationProbe?.isCancelled == true) {
+            return .outOfFuel
+        }
         let fuel = store.value.remainingFuel.address
         let (remaining, underflow) = fuel.pointee.subtractingReportingOverflow(immediate.raw)
         if _slowPath(underflow) {
@@ -76,6 +79,9 @@ extension Execution {
     @inline(__always)
     mutating func chargeBytesCopied(_ bytes: UInt64) throws {
         guard store.value.isFuelMetered else { return }
+        if _slowPath(store.value.cancellationProbe?.isCancelled == true) {
+            throw Trap(.outOfFuel)
+        }
         let fuel = store.value.remainingFuel.address
         let (remaining, underflow) = fuel.pointee.subtractingReportingOverflow(bytes / 64)
         if _slowPath(underflow) {

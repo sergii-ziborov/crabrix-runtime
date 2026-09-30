@@ -14,6 +14,13 @@ public struct Fuel: Sendable {
     }
 }
 
+/// A thread-safe, caller-owned cancellation probe. The store is configured on
+/// its execution thread before a guest starts; only the probe's state may be
+/// changed from another thread. No Store mutation is required to request Stop.
+public protocol ExecutionCancellation: AnyObject, Sendable {
+    var isCancelled: Bool { get }
+}
+
 /// A container to manage WebAssembly object space.
 /// > Note:
 /// <https://webassembly.github.io/spec/core/exec/runtime.html#store>
@@ -21,6 +28,9 @@ public final class Store {
     var nameRegistry = NameRegistry()
     @_spi(Fuzzing)  // Consider making this public
     public var resourceLimiter: ResourceLimiter = DefaultResourceLimiter()
+    /// Checked at existing fuel checkpoints when the engine meters fuel.
+    /// The probe must itself be safe to read concurrently.
+    public var cancellationProbe: (any ExecutionCancellation)?
 
     /// The remaining fuel. `UInt64.max` means "unlimited".
     ///
