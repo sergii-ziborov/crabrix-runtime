@@ -4,6 +4,7 @@
 | --- | --- | --- | --- | --- |
 | `CrabrixRuntime` product and policy wrapper | Centralize immutable module handling, fresh stores, fuel and hard memory/table limits | `CrabrixRuntimeTests` | No device benchmark yet | Retain as app-specific embedding surface; propose reusable API upstream if it stabilizes |
 | Cancellation probe at existing fuel checkpoints | Stop pure-compute guests without a second instruction counter or cross-thread Store mutation | `CrabrixRuntimeTests.cancellationStopsPureLoopAtFuelCheckpoint`, app `WasmSandboxPolicyTests` | Host-side cost not yet measured on device | Propose upstream cancellation API; remove local patch after adoption |
+| Execution-thread cancellation sampling | Avoid invoking the embedder's lock/clock-backed deadline probe on every metered region. A counter confined to `Store` samples every 64 fuel checkpoints, including the first charge of each exported invocation; bulk operations still probe directly | New `FuelTests.cancellationProbeStopsBothDispatchersWithinAShortFuelBound`; full `swift test` 464 tests across 15 targets; app Stop and speed gates pending | No speed claim before matched app measurements | Propose configurable sampling upstream if safety and device latency hold; remove local change if upstream supplies a better low-overhead cancellation contract |
 | Guarded, network-free WASI link overload | Check deadlines/Stop at every host call; socket imports return `ENOSYS` | App sandbox and compiler gates; upstream WASI suite | Not benchmarked | Propose a general pre-host-call hook upstream |
 | Typed `Trap.isOutOfFuel` | Preserve budget reason without string matching | App pure-loop budget test | Not measured | Remove if upstream exposes public trap reason |
 | Read-only host WASI preopens | Deny write/truncate/unlink/rename/symlink/timestamp mutation through input mounts and nested descriptors; advertise reduced rights | `ReadOnlyPreopenTests` | Not measured | Propose capability flags upstream; keep until equivalent upstream rights enforcement exists |
@@ -13,7 +14,7 @@
 | Token dispatch for software-checked memory | Release arm64 test showed an out-of-bounds load could return zero under direct dispatch even though the committed bound was 65,536 bytes; select token dispatch whenever the engine uses software bounds | `MprotectBoundsCheckingTests`, `ReservedSoftwareMemoryTests.directRequestStillTrapsUnderSoftwareBounds` | Avoids the unsafe direct-dispatch experiment; no new speed claim | Investigate the direct handler upstream and remove the fallback only after its OOB regression passes |
 | README and provenance documents | Make the fork's origin and supported commands explicit | Link and command smoke | None | Keep with the fork |
 
-No upstream dispatch mode, parser, or memory layout is modified. The
+No guest dispatch mode, parser, or linear-memory layout is modified. The
 `@_spi(Fuzzing)` bridge is isolated to one wrapper source file and should be
 removed once upstream exposes a supported resource-limiter setter. Read-only
 WASI rights for compiler source mounts and bounded stdio require app-level

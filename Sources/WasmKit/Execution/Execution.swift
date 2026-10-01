@@ -503,6 +503,7 @@ func executeWasm(
     stack executionStack: inout ExecutionStack
 ) throws -> [Value] {
     // NOTE: `store` variable must not outlive this function
+    store.cancellationCheckCount.value = 0
     let store = StoreRef(store)
     return try Execution.with(store: store, stack: &executionStack) { (stack, sp) in
         try runRoot(&stack, sp: sp, store: store, handle: handle, type: type, arguments: arguments)
