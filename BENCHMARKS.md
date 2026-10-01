@@ -69,3 +69,32 @@ workload with no physical-device, RSS, thermal, Cargo, or p95 result.
 The 0.3.1 A and clean 0.4.1 B device baselines remain outstanding. The
 `swift test` fuel and adapter results are correctness tests, not speed
 measurements.
+
+## Sampled cancellation, dependency-rich CLI, iOS Simulator, 2 October 2026
+
+The app compared prior fork `fbe46d928a4592ca274e5fdf07fdbafcf9538868`
+with sampled-cancellation fork `d996f0d11dff54734b5670d58062e22c6e01f949`
+in A/B/A order. All three Release iOS 18.2 arm64 Simulator runs compiled and
+ran the same three-file `clap 4.5.50` + `regex 1.13.1` + `hashbrown 0.17.1` +
+`smallvec 1.15.1` CLI and asserted the same output. Each run used the own
+stripped test compiler SHA-256
+`5da690fe77625d55602e400ebdb0d57fb496c1f3e26d1376c1a8ef0e56e378bd`
+and removed candidate Cargo artifacts before execution.
+
+| Run | Runtime | Test wall time | Guest execution phase sum |
+| --- | --- | ---: | ---: |
+| A1 | sampled `d996f0d` | 345.835 s | 342.212 s |
+| B | prior `fbe46d9` | 563.758 s | 560.021 s |
+| A2 | sampled `d996f0d` | 351.106 s | 346.398 s |
+
+This is about 1.61–1.63× faster for the selected CLI. It is not a
+several-fold whole-app claim. Registry/system caches and thermal state were
+not independently controlled; Xcode may have replaced the app data container
+between binary revisions. Peak RSS and physical-device measurements are
+missing. [Sanitized raw observations](https://github.com/sergii-ziborov/Crabrix/blob/codex/runtime-sampled-probe-2026-10-02/docs/performance/2026-10-02-sampled-cancellation-heavy-cli-simulator.json)
+retain all 23 guest phase times per run.
+
+The fork's full `swift test` run passed 464 tests across 15 targets. App-level
+old-compiler and own-compiler selections each passed fuel exhaustion, user
+Stop, and a 20 ms pure-compute wall-clock deadline, five tests per selection.
+Those correctness results do not establish a physical-device Stop latency.
