@@ -10,6 +10,15 @@ import WasmParser
 /// moves them should fail here and be explained, not re-blessed.
 @Suite
 struct FuelTests {
+    private final class StopAfterSecondProbe: ExecutionCancellation, @unchecked Sendable {
+        private(set) var calls = 0
+
+        var isCancelled: Bool {
+            calls += 1
+            return calls >= 2
+        }
+    }
+
     /// Instantiates `wat` on an engine with fuel metering enabled.
     private static func setUp(
         _ wat: String,
@@ -108,6 +117,24 @@ struct FuelTests {
             Issue.record("expected the guest to run out of fuel")
         } catch let trap as Trap {
             #expect(trap.description.contains("out of fuel"))
+        }
+    }
+
+    @Test
+    func cancellationProbeStopsBothDispatchersWithinAShortFuelBound() throws {
+        for threadingModel in [EngineConfiguration.ThreadingModel.token, .direct] {
+            let (store, f) = try Self.setUp(
+                """
+                (module (func (export "f") (loop $l (br $l))))
+                """,
+                fuel: 1_000_000,
+                threadingModel: threadingModel
+            )
+            let probe = StopAfterSecondProbe()
+            store.cancellationProbe = probe
+            #expect(throws: Trap.self) { try f([]) }
+            #expect(probe.calls == 2)
+            #expect(try #require(store.fuel).remaining > 999_000)
         }
     }
 

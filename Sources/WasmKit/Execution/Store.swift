@@ -29,8 +29,15 @@ public final class Store {
     @_spi(Fuzzing)  // Consider making this public
     public var resourceLimiter: ResourceLimiter = DefaultResourceLimiter()
     /// Checked at existing fuel checkpoints when the engine meters fuel.
-    /// The probe must itself be safe to read concurrently.
+    /// The probe must itself be safe to read concurrently. The execution
+    /// thread samples it once per 64 checkpoints; bulk operations sample it
+    /// directly before charging their copied bytes.
     public var cancellationProbe: (any ExecutionCancellation)?
+
+    /// A checkpoint count local to this thread-confined Store. Sampling the
+    /// probe here avoids an atomic or clock read on every fuel charge. Zero
+    /// checks the probe at the first checkpoint of an exported invocation.
+    let cancellationCheckCount = Cell<UInt32>(0)
 
     /// The remaining fuel. `UInt64.max` means "unlimited".
     ///
@@ -82,6 +89,7 @@ public final class Store {
     private func assign(fuel newValue: Fuel?) {
         hasFuel = newValue != nil
         remainingFuel.value = newValue?.remaining ?? .max
+        cancellationCheckCount.value = 0
     }
 
     @available(*, unavailable)

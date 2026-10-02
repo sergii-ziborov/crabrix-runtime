@@ -2,6 +2,7 @@ import WASI
 import WasmKit
 
 public typealias WASIBridgeToHost = WASI.WASIBridgeToHost
+public typealias WASIOutputBudget = WASI.WASIOutputBudget
 public typealias MemoryFileSystem = WASI.MemoryFileSystem
 
 /// A group of WASI functions that can be linked on its own.
