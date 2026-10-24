@@ -48,8 +48,9 @@ A second candidate keeps the probe's existential-access scratch storage in a
 non-inlined `StoreRef` helper. The optimized arm64 direct checkpoint handler's
 native frame shrank from 128 to 64 bytes. Compiler stack-protection settings,
 guest bounds and metering are retained. The same 16-test/179-script optimized
-gate passed. Matched `bytes` outputs agree; host wall-time ranges overlap, so a
-device measurement is still required before selecting this revision for speed.
+gate passed. Matched `bytes` outputs agree; host wall-time ranges overlap.
+The subsequent app/device observations are recorded below; the ThinLTO device
+result did not establish an outlining-only gain.
 
 ## Emit immediate operands without temporary arrays
 
@@ -67,3 +68,16 @@ fuel prices, cancellation and bounds policy are retained.
 The optimized host gate passed 17 tests in four suites, including 179 official
 instruction scripts and the saved translator fuzz regressions. Matched compiler
 output and physical timing remain separate qualification gates.
+
+### Physical qualification follow-up
+
+The app's source snapshot `7c0bbf1` with runtime source `2b97c92` and the
+full-LTO compiler (`8f1b313c…`) passed six physical iPhone 13 mini/iOS 26.5
+gates. A fresh isolated Tokio 1.54.1 `rt,sync,time,io-util` graph, with all
+three dependency artifacts asserted uncached, compiled and produced its
+checked output in 29.778 s (fair thermal state at both ends). This is one
+observation of a selected smaller graph, not Kameo or a stability guarantee.
+The whole-compile heartbeat maximum gap was 53.59 ms; Stop, memory quota and
+the signed-sysroot/wide-integer/E0502 gate passed. Production software dispatch
+and the released compiler remain separate from these opt-in experiments.
+See the [app's complete evidence](https://github.com/sergii-ziborov/Crabrix/blob/915cc1df41814c9c3637fd1a9366b7f50ad87888/docs/performance/2026-10-25-direct-emission.json).
