@@ -2,7 +2,7 @@ import ArgumentParser
 import Foundation
 import WASI
 import WAT
-import WasmKit
+@_spi(Fuzzing) import WasmKit
 import WasmKitWASI
 import WasmKitWASIThreads
 import WasmParser
@@ -203,6 +203,9 @@ package struct Run: AsyncParsableCommand {
     )
     var fuel: UInt64?
 
+    @Flag(help: ArgumentHelp("Research only: direct dispatch with software bounds.", visibility: .hidden))
+    var experimentalSoftwareDirect = false
+
     #if WasmDebuggingSupport
 
         @Option(
@@ -402,13 +405,19 @@ package struct Run: AsyncParsableCommand {
             // the former implies the latter. The reverse does not hold.
             enabledFeatures.insert(.threads)
         }
-        return EngineConfiguration(
+        var configuration = EngineConfiguration(
             threadingModel: self.threadingModel?.resolve(),
             compilationMode: self.compilationMode?.resolve(),
             stackSize: self.stackSize,
             features: enabledFeatures,
             fuelMetering: self.fuel != nil
         )
+        if experimentalSoftwareDirect {
+            configuration.threadingModel = .direct
+            configuration.memoryBoundsChecking = .software
+            configuration.enableExperimentalSoftwareDirectThreading()
+        }
+        return configuration
     }
 
     package func deriveEnvironment() -> [String: String] {

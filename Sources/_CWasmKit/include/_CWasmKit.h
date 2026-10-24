@@ -101,11 +101,9 @@ typedef WASMKIT_TC_CC void (* WASMKIT_NONNULL wasmkit_tc_exec)(
 /// with the ClangImporter that ignores the explicitly specified calling
 /// convention and it leads to a miscompilation of the tail call.
 /// See https://github.com/swiftlang/swift/issues/69264
-static inline void wasmkit_tc_start(
+void wasmkit_tc_start(
     wasmkit_tc_exec exec, Sp sp, Pc pc, Md md, Ms ms, void *WASMKIT_NULLABLE state
-) {
-  exec(sp, pc, md, ms, 0, 0.0, state);
-}
+);
 #endif
 
 int wasmkit_address_sanitizer_enabled(void);

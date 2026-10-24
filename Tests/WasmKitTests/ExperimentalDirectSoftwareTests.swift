@@ -53,4 +53,38 @@ struct ExperimentalDirectSoftwareTests {
         let result = try good()
         #expect(result == [.i32(42)])
     }
+
+    @Test func cancellationAndCommittedMemoryBoundsRemainEffective() throws {
+        final class Probe: ExecutionCancellation, @unchecked Sendable {
+            var calls = 0
+            var isCancelled: Bool { calls += 1; return calls >= 2 }
+        }
+        let module = try parseWasm(bytes: wat2wasm("""
+            (module (memory 1 4)
+              (func (export "read") (result i32) (i32.load (i32.const 65536)))
+              (func (export "grow") (result i32) (memory.grow (i32.const 1)))
+              (func (export "spin") (loop $loop (br $loop))))
+            """))
+        let store = Store(engine: engine())
+        store.fuel = Fuel(remaining: 1_000_000)
+        let instance = try module.instantiate(store: store)
+        let read = try #require(instance.exports[function: "read"])
+        let grow = try #require(instance.exports[function: "grow"])
+        #expect(throws: Trap.self) { try read() }
+        let grown = try grow()
+        #expect(grown == [.i32(1)])
+        let zero = try read()
+        #expect(zero == [.i32(0)])
+        let probe = Probe()
+        store.cancellationProbe = probe
+        let fuelBeforeLoop = try #require(store.fuel).remaining
+        let spin = try #require(instance.exports[function: "spin"])
+        #expect(throws: Trap.self) { try spin() }
+        #expect(probe.calls == 2)
+        let fuelAfterLoop = try #require(store.fuel).remaining
+        #expect(fuelBeforeLoop - fuelAfterLoop < 1_000)
+        store.cancellationProbe = nil
+        let afterCancel = try read()
+        #expect(afterCancel == [.i32(0)])
+    }
 }
