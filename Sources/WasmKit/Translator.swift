@@ -2071,12 +2071,13 @@ struct InstructionTranslator: ~Copyable, InstructionVisitor {
             let headSlot = instruction.headSlot(threadingModel: engineConfiguration.threadingModel)
             trace("        [\(index)] = 0x\(String(headSlot, radix: 16))")
             self.instructions[index] = headSlot
-            var slots: [CodeSlot] = []
-            instruction.emitImmediate(to: { slots.append($0) })
-            for (i, slot) in slots.enumerated() {
-                let slotIndex = index + 1 + i
+            // Immediate emission is synchronous. Write into the existing code
+            // buffer instead of allocating a temporary array for every patch.
+            var slotIndex = index + 1
+            instruction.emitImmediate { slot in
                 trace("        [\(slotIndex)] = 0x\(String(slot, radix: 16))")
-                self.instructions[slotIndex] = slot
+                instructions[slotIndex] = slot
+                slotIndex += 1
             }
         }
 
@@ -2311,9 +2312,9 @@ struct InstructionTranslator: ~Copyable, InstructionVisitor {
             let position = insertingPC
             trace("emitInstruction: \(instruction)")
             emitSlot(instruction.headSlot(threadingModel: engineConfiguration.threadingModel))
-            var slots: [CodeSlot] = []
-            instruction.emitImmediate(to: { slots.append($0) })
-            for slot in slots { emitSlot(slot) }
+            // No intermediate collection: the nonescaping emitter appends
+            // directly to this function's instruction buffer.
+            instruction.emitImmediate { emitSlot($0) }
             self.lastEmission = LastEmission(
                 position: position, end: insertingPC,
                 resultRelink: resultRelink,

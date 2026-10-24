@@ -50,3 +50,20 @@ native frame shrank from 128 to 64 bytes. Compiler stack-protection settings,
 guest bounds and metering are retained. The same 16-test/179-script optimized
 gate passed. Matched `bytes` outputs agree; host wall-time ranges overlap, so a
 device measurement is still required before selecting this revision for speed.
+
+## Emit immediate operands without temporary arrays
+
+An optimized native sample of a fresh `bytes 1.12.1` compilation through the
+full-LTO rustc candidate observed 251 of 1,951 worker-thread samples inside
+lazy function compilation. It included allocation/growth of the per-emission
+immediate array. This is a sampled host workload, not a device timing claim.
+
+Immediate emitters are synchronous and now declare nonescaping callbacks.
+The instruction builder appends operands directly to its code buffer; patches
+write directly into the already reserved slots. The generator template and
+its generated dispatch stay consistent. Instruction layout, branch targets,
+fuel prices, cancellation and bounds policy are retained.
+
+The optimized host gate passed 17 tests in four suites, including 179 official
+instruction scripts and the saved translator fuzz regressions. Matched compiler
+output and physical timing remain separate qualification gates.
