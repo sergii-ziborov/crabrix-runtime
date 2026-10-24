@@ -84,6 +84,17 @@ public final class ProcMacroTransport {
         link(to: &imports, store: store, context: Context(moduleID: 0))
     }
 
+    /// proc_macro2 may link the API while using its ordinary parser fallback
+    /// outside a macro expansion. Resolve the ABI without granting a loader.
+    public static func linkUnavailable(to imports: inout Imports, store: Store) {
+        for (name, count) in [("exchange", 6), ("read_reply", 2)] {
+            imports.define(module: "crabrix_proc_macro_v1", name: name,
+                Function(store: store, parameters: Array(repeating: .i32, count: count), results: [.i32]) { _, _ in
+                    throw Failure.unavailable
+                })
+        }
+    }
+
     public func close() {
         closed = true
         for guest in guests.values { guest.loaded.close() }
