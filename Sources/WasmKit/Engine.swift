@@ -54,7 +54,7 @@ public final class Engine {
         // of trapping with software memory checks on optimized arm64 builds.
         // Keep the direct path for mprotect and use the checked token path for
         // software memory, including platforms where mprotect is unavailable.
-        if configuration.memoryBoundsChecking == .software {
+        if configuration.memoryBoundsChecking == .software && !configuration.experimentalSoftwareDirectThreading {
             configuration.threadingModel = .token
         }
 
@@ -78,6 +78,15 @@ extension Engine: @unchecked Sendable {}
 
 /// The configuration for the WebAssembly execution engine.
 public struct EngineConfiguration: Sendable {
+    // The production default still forces token dispatch for software bounds.
+    // This opt-in exists only for correctness/performance experiments.
+    fileprivate var experimentalSoftwareDirectThreading = false
+
+    @_spi(Fuzzing)
+    public mutating func enableExperimentalSoftwareDirectThreading() {
+        experimentalSoftwareDirectThreading = true
+    }
+
     /// The threading model, which determines how to dispatch instruction
     /// execution, to use for the virtual machine interpreter.
     public enum ThreadingModel: Sendable {

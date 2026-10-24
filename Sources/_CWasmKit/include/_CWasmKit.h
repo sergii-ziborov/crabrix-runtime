@@ -87,15 +87,10 @@ typedef WASMKIT_TC_CC void (* WASMKIT_NONNULL wasmkit_tc_exec)(
     uint64_t *WASMKIT_NONNULL sp, Pc, Md, Ms, uint64_t ireg, double freg,
     WASMKIT_TC_CONTEXT void *WASMKIT_NULLABLE state);
 
-/// Declares an accumulator value that the next handler never reads, for a
-/// handler that does not use the accumulator. Leaving it indeterminate lets a
-/// handler with a call in it pass on whatever the register holds instead of
-/// preserving the incoming value across the call.
-#define WASMKIT_DEAD_ACCUMULATOR(type, name)                \
-    _Pragma("clang diagnostic push")                        \
-    _Pragma("clang diagnostic ignored \"-Wuninitialized\"") \
-    type name = name;                                       \
-    _Pragma("clang diagnostic pop")
+/// A defined value for an accumulator the next handler does not consume.
+/// Passing an indeterminate C automatic value through a noundef argument is
+/// undefined behavior even when the next handler does not read that register.
+#define WASMKIT_DEAD_ACCUMULATOR(type, name) type name = (type)0;
 
 /// The entry point for executing a direct-threaded interpreter loop.
 /// The interpreter loop is implemented as a tail-recursive function that
