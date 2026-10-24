@@ -32,12 +32,14 @@ extension Execution {
     /// because this instruction is only ever emitted when that configuration asks for metering.
     @inline(__always)
     mutating func consumeFuel(immediate: Instruction.ConsumeFuelOperand) -> FuelTrap? {
-        if let probe = store.value.cancellationProbe {
-            let checks = store.value.cancellationCheckCount.address
-            if _slowPath(checks.pointee & 63 == 0 && probe.isCancelled) {
-                return .outOfFuel
-            }
-            checks.pointee &+= 1
+        let checks = store.value.cancellationCheckCount.address
+        let check = checks.pointee
+        checks.pointee = check &+ 1
+        // Accessing an existential property retains/releases its object and
+        // performs Swift exclusivity checks even when no probe is installed.
+        // Keep those operations on the sampled path, not every checkpoint.
+        if _slowPath(check & 63 == 0), store.value.cancellationProbe?.isCancelled == true {
+            return .outOfFuel
         }
         let fuel = store.value.remainingFuel.address
         let (remaining, underflow) = fuel.pointee.subtractingReportingOverflow(immediate.raw)

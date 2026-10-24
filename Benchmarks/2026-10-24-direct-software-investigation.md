@@ -25,3 +25,19 @@ The expanded optimized host gate passed 19 tests, including 179 official core/Cr
 Four process-cold compilations of an identical std/BTreeMap Rust input produced identical Wasm hashes: token 6.575/8.675 s, experimental direct 7.525/6.549 s. These host ranges overlap and do not prove a speedup. CLI memory policy differs from the app, so these are not iPhone resource or startup measurements. The opt-in hidden CLI flag is research-only.
 
 The physical iPhone production-token baseline freshly compiled/generated a web page in 7.348 s. A fresh Tokio feature-profile dependency build exceeded the 240 s test bound; bytes alone took approximately 63 s. The requested 30 s large-project target is not met by this baseline.
+
+## Sample cancellation before opening the probe existential
+
+An optimized arm64 disassembly of `wasmkit_execute_consumeFuel` showed retain,
+release and Swift exclusivity calls on **every** checkpoint, before testing the
+existing one-in-64 cancellation sampling condition. The handler now tests the
+counter first and opens the cancellation-probe existential only on sampled
+checkpoints. The sampling interval, fuel pricing and bulk-operation checks are
+retained. Assigning a probe resets the counter so a host call that installs an
+already-cancelled probe stops at the next guest checkpoint.
+
+The optimized host gate passed 16 tests across fuel and experimental direct
+suites, including 179 instruction scripts, exact fuel-accounting assertions,
+trap/recovery, cancellation and a host-installed probe test that requires zero
+executed loop-body writes. Device and compiler timing are separate gates; no
+speedup is inferred solely from these correctness tests.

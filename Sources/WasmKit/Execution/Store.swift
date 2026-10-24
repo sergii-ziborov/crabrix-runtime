@@ -32,7 +32,11 @@ public final class Store {
     /// The probe must itself be safe to read concurrently. The execution
     /// thread samples it once per 64 checkpoints; bulk operations sample it
     /// directly before charging their copied bytes.
-    public var cancellationProbe: (any ExecutionCancellation)?
+    public var cancellationProbe: (any ExecutionCancellation)? {
+        // Installing a probe during a host call must check it at the very next
+        // guest checkpoint, regardless of the previous sampling position.
+        didSet { cancellationCheckCount.value = 0 }
+    }
 
     /// A checkpoint count local to this thread-confined Store. Sampling the
     /// probe here avoids an atomic or clock read on every fuel charge. Zero

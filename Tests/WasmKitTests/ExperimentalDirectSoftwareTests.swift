@@ -5,12 +5,49 @@ import WAT
 
 @Suite(.enabled(if: ProcessInfo.processInfo.environment["CRABRIX_RUN_EXPERIMENTAL_DIRECT"] == "1"))
 struct ExperimentalDirectSoftwareTests {
-    private func engine() -> Engine {
-        var configuration = EngineConfiguration(threadingModel: .direct,
+    private func engine(threadingModel: EngineConfiguration.ThreadingModel = .direct) -> Engine {
+        var configuration = EngineConfiguration(threadingModel: threadingModel,
             memoryBoundsChecking: .software, fuelMetering: true,
             softwareMemoryReservationBytes: 4 * 65_536)
         configuration.enableExperimentalSoftwareDirectThreading()
         return Engine(configuration: configuration)
+    }
+
+    @Test func probeInstalledByHostCallStopsBeforeTheNextLoopBody() throws {
+        final class Cancelled: ExecutionCancellation, @unchecked Sendable {
+            var calls = 0
+            var isCancelled: Bool { calls += 1; return true }
+        }
+        let module = try parseWasm(bytes: wat2wasm("""
+            (module
+              (import "host" "cancel" (func $cancel))
+              (memory 1)
+              (func (export "spin")
+                (call $cancel)
+                (loop $loop
+                  (i32.store (i32.const 0)
+                    (i32.add (i32.load (i32.const 0)) (i32.const 1)))
+                  (br $loop)))
+              (func (export "read") (result i32) (i32.load (i32.const 0))))
+            """))
+        for model in [EngineConfiguration.ThreadingModel.token, .direct] {
+            let store = Store(engine: engine(threadingModel: model))
+            store.fuel = Fuel(remaining: 1_000_000)
+            let probe = Cancelled()
+            var imports = Imports()
+            imports.define(module: "host", name: "cancel",
+                Function(store: store, parameters: [], results: []) { caller, _ in
+                    caller.store.cancellationProbe = probe
+                    return []
+                })
+            let instance = try module.instantiate(store: store, imports: imports)
+            let spin = try #require(instance.exports[function: "spin"])
+            #expect(throws: Trap.self) { try spin() }
+            #expect(probe.calls == 1)
+            store.cancellationProbe = nil
+            let read = try #require(instance.exports[function: "read"])
+            #expect(try read() == [.i32(0)])
+        }
     }
 
     @Test func outOfBoundsAndExplicitTrapsPropagate() throws {
