@@ -41,3 +41,12 @@ suites, including 179 instruction scripts, exact fuel-accounting assertions,
 trap/recovery, cancellation and a host-installed probe test that requires zero
 executed loop-body writes. Device and compiler timing are separate gates; no
 speedup is inferred solely from these correctness tests.
+
+### Outline the sampled access
+
+A second candidate keeps the probe's existential-access scratch storage in a
+non-inlined `StoreRef` helper. The optimized arm64 direct checkpoint handler's
+native frame shrank from 128 to 64 bytes. Compiler stack-protection settings,
+guest bounds and metering are retained. The same 16-test/179-script optimized
+gate passed. Matched `bytes` outputs agree; host wall-time ranges overlap, so a
+device measurement is still required before selecting this revision for speed.

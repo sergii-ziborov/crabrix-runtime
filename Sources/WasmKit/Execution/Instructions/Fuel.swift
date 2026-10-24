@@ -38,7 +38,7 @@ extension Execution {
         // Accessing an existential property retains/releases its object and
         // performs Swift exclusivity checks even when no probe is installed.
         // Keep those operations on the sampled path, not every checkpoint.
-        if _slowPath(check & 63 == 0), store.value.cancellationProbe?.isCancelled == true {
+        if _slowPath(check & 63 == 0), store.pollCancellationAtCheckpoint() {
             return .outOfFuel
         }
         let fuel = store.value.remainingFuel.address
@@ -94,5 +94,15 @@ extension Execution {
             throw Trap(.outOfFuel)
         }
         fuel.pointee = remaining
+    }
+}
+
+extension StoreRef {
+    /// Keep existential-access scratch storage in this rare helper so the hot
+    /// handler's frame stays smaller. Native stack-protection settings and
+    /// guest safety checks remain enabled.
+    @inline(never)
+    fileprivate func pollCancellationAtCheckpoint() -> Bool {
+        value.cancellationProbe?.isCancelled == true
     }
 }
