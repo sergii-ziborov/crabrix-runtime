@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-24",
+  "environment": "Apple Silicon macOS, Swift 6.3 / Xcode 27.1 RC, Release swift test, three alternating separate processes per mode",
+  "artifactSHA256": "0286dc52064283ef78ba153a554d86ae742e6c8cd638aea8662e07d3529233fc",
+  "artifactBytes": 129350419,
+  "observations": [
+    {
+      "run": "parser-1-0",
+      "retainDebug": false,
+      "seconds": 0.202961375,
+      "retainedCustomBytes": 297,
+      "processTreeMaximumRSSBytes": 372670464
+    },
+    {
+      "run": "parser-1-1",
+      "retainDebug": true,
+      "seconds": 0.305602375,
+      "retainedCustomBytes": 41506363,
+      "processTreeMaximumRSSBytes": 389283840
+    },
+    {
+      "run": "parser-2-0",
+      "retainDebug": false,
+      "seconds": 0.2953355,
+      "retainedCustomBytes": 297,
+      "processTreeMaximumRSSBytes": 372719616
+    },
+    {
+      "run": "parser-2-1",
+      "retainDebug": true,
+      "seconds": 0.214905458,
+      "retainedCustomBytes": 41506363,
+      "processTreeMaximumRSSBytes": 389038080
+    },
+    {
+      "run": "parser-3-0",
+      "retainDebug": false,
+      "seconds": 0.289399541,
+      "retainedCustomBytes": 297,
+      "processTreeMaximumRSSBytes": 372867072
+    },
+    {
+      "run": "parser-3-1",
+      "retainDebug": true,
+      "seconds": 0.372718833,
+      "retainedCustomBytes": 41506363,
+      "processTreeMaximumRSSBytes": 388792320
+    }
+  ],
+  "limitations": "Native macOS parser only. Process-tree maximum RSS from /usr/bin/time -l includes test tooling. Shared host under load. Timing ranges overlap; no whole-compiler speedup claimed. Program names remain retained by default; only trusted compiler parsing opts out."
+}

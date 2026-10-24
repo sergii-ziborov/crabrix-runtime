@@ -3,8 +3,12 @@
 
     /// Parse a given file as a WebAssembly binary format file
     /// > Note: <https://webassembly.github.io/spec/core/binary/index.html>
-    public func parseWasm(filePath: String, features: WasmFeatureSet = .default) throws -> Module {
-        let parser = try WasmParser.Parser(filePath: filePath, features: features)
+    public func parseWasm(
+        filePath: String, features: WasmFeatureSet = .default,
+        retainDebugCustomSections: Bool = true
+    ) throws -> Module {
+        var parser = try WasmParser.Parser(filePath: filePath, features: features)
+        parser.retainDebugCustomSectionContents = retainDebugCustomSections
         return try parseModule(parser: parser, features: features)
     }
 

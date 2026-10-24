@@ -38,7 +38,10 @@ func parseModule<Source: ByteStreamSource>(parser: consuming WasmParser.Parser<S
         switch payload {
         case .header: break
         case .customSection(let customSection):
-            customSections.append(customSection)
+            if parser.retainDebugCustomSectionContents
+                || !(customSection.name == "name" || customSection.name.hasPrefix(".debug_")) {
+                customSections.append(customSection)
+            }
         case .typeSection(let typeSection):
             types = typeSection
         case .importSection(let importSection):

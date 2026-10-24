@@ -98,3 +98,23 @@ The fork's full `swift test` run passed 464 tests across 15 targets. App-level
 old-compiler and own-compiler selections each passed fuel exhaustion, user
 Stop, and a 20 ms pure-compute wall-clock deadline, five tests per selection.
 Those correctness results do not establish a physical-device Stop latency.
+
+## Optional compiler debug-section retention, 24 October 2026
+
+`parseWasm(filePath:retainDebugCustomSections:false)` consumes `name` and
+`.debug_*` payloads in 64 KiB chunks without retaining them in the module.
+Executable sections and every other custom section follow the existing parser.
+The default remains `true`; ordinary user-program backtraces retain their names.
+The opt-in compiler path trades internal Wasm symbol names for less retained data;
+Rust source diagnostics are produced by rustc and are separate from these names.
+
+Three alternating Release macOS parses of the exact bundled rustc artifact
+retained 41,506,363 custom-section bytes with the default and 297 bytes with the
+opt-in path. Median process-tree maximum RSS was 389,038,080 versus 372,719,616
+bytes. Median parsing time was 305.6 versus 289.4 ms, with overlapping ranges
+under shared-host load: this is **not a demonstrated compiler throughput gain**.
+These are native parser observations, not iPhone memory or end-to-end build
+measurements. See `Benchmarks/2026-10-24-custom-section-retention.json` for raw
+inputs and observations. Filtered-module execution and truncated skipped-section
+rejection have dedicated tests. App/device correctness gates are still required
+before enabling this path in a distributed app.

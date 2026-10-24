@@ -18,6 +18,10 @@ public struct Parser<Source: ByteStreamSource> {
     var nextParseTarget: NextParseTarget
 
     public let features: WasmFeatureSet
+    /// Opt in for large compiler modules whose names and DWARF are not used.
+    /// Section names are still returned, but their contents are consumed in
+    /// bounded chunks. Executable and other custom sections are unchanged.
+    public var retainDebugCustomSectionContents = true
     public var offset: Int {
         return stream.currentIndex
     }
@@ -861,6 +865,15 @@ extension Parser {
             throw makeError(.invalidSectionSize(size))
         }
 
+        if !retainDebugCustomSectionContents && (name == "name" || name.hasPrefix(".debug_")) {
+            var remaining = contentSize
+            while remaining > 0 {
+                let chunk = min(remaining, 64 * 1024)
+                _ = try stream.consume(count: chunk)
+                remaining -= chunk
+            }
+            return CustomSection(name: name, bytes: [])
+        }
         let bytes = try stream.consume(count: contentSize)
 
         return CustomSection(name: name, bytes: bytes)
