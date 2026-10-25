@@ -584,7 +584,9 @@ extension WASIImplementation {
     }
 
     /// `poll_oneoff`.
-    func pollFunctions<M: GuestMemory & SendableMetatype>() -> [String: WASIHostFunction<M>] {
+    func pollFunctions<M: GuestMemory & SendableMetatype>(
+        cancellationCheck: (@Sendable () throws -> Void)? = nil
+    ) -> [String: WASIHostFunction<M>] {
         var preview1: [String: WASIHostFunction<M>] = [:]
 
         preview1["poll_oneoff"] = wasiFunction(
@@ -596,7 +598,7 @@ extension WASIImplementation {
                 let size = try self.poll_oneoff(
                     subscriptions: .init(baseAddress: subscriptionsBaseAddress, count: arguments[2].i32),
                     events: .init(baseAddress: eventsBaseAddress, count: arguments[2].i32),
-                    memory: buffer
+                    memory: buffer, cancellationCheck: cancellationCheck
                 )
                 buffer.withUnsafeMutableBufferPointer(offset: .init(arguments[3].i32), count: MemoryLayout<UInt32>.size) { raw in
                     raw.withMemoryRebound(to: UInt32.self) { rebound in rebound[0] = size.littleEndian }
@@ -705,6 +707,10 @@ public struct WASICapability<M: GuestMemory & SendableMetatype>: Sendable {
     public static var fileSystem: Self { .init { $0.fileSystemFunctions() } }
     /// `poll_oneoff`.
     public static var poll: Self { .init { $0.pollFunctions() } }
+    /// Poll with bounded host-wait slices so the caller can enforce Stop/deadlines.
+    public static func interruptiblePoll(_ check: @escaping @Sendable () throws -> Void) -> Self {
+        .init { $0.pollFunctions(cancellationCheck: check) }
+    }
     /// The implemented part of the socket surface.
     public static var sockets: Self { .init { $0.socketsFunctions() } }
 

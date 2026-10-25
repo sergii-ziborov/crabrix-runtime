@@ -14,7 +14,8 @@ func poll<M: GuestMemory>(
     subscriptions: some Sequence<WASIAbi.Subscription>,
     events: UnsafeGuestBufferPointer<WASIAbi.Event>,
     _ fdTable: FdTable,
-    memory: M
+    memory: M,
+    cancellationCheck: (@Sendable () throws -> Void)? = nil
 ) throws -> WASIAbi.Size {
     var pollSubscriptions = [PlatformPoll.Subscription]()
     var fdUserData = [WASIAbi.UserData]()
@@ -40,9 +41,26 @@ func poll<M: GuestMemory>(
         }
     }
 
-    let readyStates = try PlatformPoll.poll(
-        subscriptions: pollSubscriptions, timeoutMilliseconds: timeoutMilliseconds
-    )
+    let readyStates: [PlatformPoll.ReadyState]?
+    if let cancellationCheck {
+        // Slice host waits as well as metering guest execution. An idle guest
+        // must remain stoppable without shortening the timer it requested.
+        let clock = SystemMonotonicClock()
+        let started = try clock.now()
+        while true {
+            try cancellationCheck()
+            let elapsed = (try clock.now() &- started) / 1_000_000
+            let remaining = timeoutMilliseconds.map { $0 - min($0, UInt(clamping: elapsed)) }
+            let slice = min(remaining ?? 20, 20)
+            if let ready = try PlatformPoll.poll(subscriptions: pollSubscriptions, timeoutMilliseconds: slice) {
+                readyStates = ready
+                break
+            }
+            if let remaining, remaining <= slice { readyStates = nil; break }
+        }
+    } else {
+        readyStates = try PlatformPoll.poll(subscriptions: pollSubscriptions, timeoutMilliseconds: timeoutMilliseconds)
+    }
     var updatedEvents: WASIAbi.Size = 0
     guard let readyStates else {
         // Timed out with no ready descriptor.

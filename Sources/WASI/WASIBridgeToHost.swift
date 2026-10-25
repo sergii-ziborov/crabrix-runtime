@@ -180,7 +180,24 @@ public final class WASIBridgeToHost: Sendable {
         capabilities: [WASICapability<M>],
         stubUnlinked: Bool = true
     ) -> [String: WASIHostFunction<M>] {
-        underlying.functions(for: capabilities, stubUnlinked: stubUnlinked)
+        let functions = underlying.functions(for: capabilities, stubUnlinked: stubUnlinked)
+        let argumentMemory = underlying.argumentMemoryRequirements
+        let environmentMemory = underlying.environmentMemoryRequirements
+        var checked: [String: WASIHostFunction<M>] = [:]
+        for (name, function) in functions {
+            checked[name] = WASIHostFunction(type: function.type) { memory, values in
+                if let byteCount = memory.guestMemoryByteCount {
+                    do {
+                        try WASIMemoryAccess.validate(name: name, values: values, memory: memory,
+                            byteCount: byteCount, argumentMemory: argumentMemory, environmentMemory: environmentMemory)
+                    } catch let errno as WASIAbi.Errno {
+                        return [.i32(UInt32(errno.rawValue))]
+                    }
+                }
+                return try function.implementation(memory, values)
+            }
+        }
+        return checked
     }
 
     /// Closes all owned file descriptors (preopened directories and any

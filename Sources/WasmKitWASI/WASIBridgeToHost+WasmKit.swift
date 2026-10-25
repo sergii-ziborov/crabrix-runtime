@@ -21,7 +21,7 @@ extension WASIBridgeToHost {
         beforeHostCall: @escaping @Sendable () throws -> Void
     ) {
         let capabilities: [WASICapability] = [
-            .environment, .clocks, .random, .process, .stdio, .fileSystem, .poll
+            .environment, .clocks, .random, .process, .stdio, .fileSystem, .interruptiblePoll(beforeHostCall)
         ]
         let functions = hostFunctions(capabilities: capabilities, stubUnlinked: true)
         for (name, function) in functions {

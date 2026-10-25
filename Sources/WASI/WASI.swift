@@ -841,6 +841,12 @@ public struct WASIHostModule<M: GuestMemory & SendableMetatype>: Sendable {
 final class WASIImplementation: Sendable {
     private let args: [String]
     private let environment: [String: String]
+    internal var argumentMemoryRequirements: (count: Int, bytes: Int) {
+        (args.count, args.reduce(0) { $0 + $1.utf8.count + 1 })
+    }
+    internal var environmentMemoryRequirements: (count: Int, bytes: Int) {
+        (environment.count, environment.reduce(0) { $0 + $1.key.utf8.count + $1.value.utf8.count + 2 })
+    }
     private let wallClock: WallClock
     private let monotonicClock: MonotonicClock
     // `var` because the single-threaded PlatformMutex fallback mutates in
@@ -1444,12 +1450,14 @@ final class WASIImplementation: Sendable {
     func poll_oneoff<M: GuestMemory>(
         subscriptions: UnsafeGuestBufferPointer<WASIAbi.Subscription>,
         events: UnsafeGuestBufferPointer<WASIAbi.Event>,
-        memory: M
+        memory: M,
+        cancellationCheck: (@Sendable () throws -> Void)? = nil
     ) throws -> WASIAbi.Size {
         guard !subscriptions.isEmpty else { throw WASIAbi.Errno.EINVAL }
         let materializedSubscriptions = (0..<subscriptions.count).map { subscriptions.read(at: $0, in: memory) }
         let table = fdTable.withLock { $0 }
-        return try poll(subscriptions: materializedSubscriptions, events: events, table, memory: memory)
+        return try poll(subscriptions: materializedSubscriptions, events: events, table, memory: memory,
+                        cancellationCheck: cancellationCheck)
     }
 
     /// Shut down socket send and receive channels.

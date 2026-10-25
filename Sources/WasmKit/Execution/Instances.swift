@@ -1104,6 +1104,7 @@ public struct Memory: Equatable {
 }
 
 extension Memory: GuestMemory {
+    public var guestMemoryByteCount: Int? { byteCount }
     /// Executes the given closure with an immutable buffer pointer to the host memory region mapped as guest memory.
     public func withUnsafeBufferPointer<T>(
         offset: UInt,
@@ -1111,7 +1112,10 @@ extension Memory: GuestMemory {
         _ body: (UnsafeRawBufferPointer) throws -> T
     ) rethrows -> T {
         return try handle.withValue { memory in
-            precondition(Int(offset) + count <= memory.byteCount, "Memory access out of bounds")
+            precondition(count >= 0 && offset <= UInt(memory.byteCount) && count <= memory.byteCount - Int(offset), "Memory access out of bounds")
+            if count == 0 {
+                return try body(UnsafeRawBufferPointer(start: nil, count: 0))
+            }
             guard let base = memory.baseAddress else {
                 preconditionFailure("Memory has no base address")
             }
@@ -1127,7 +1131,10 @@ extension Memory: GuestMemory {
         _ body: (UnsafeMutableRawBufferPointer) throws -> T
     ) rethrows -> T {
         return try handle.withValue { memory in
-            precondition(Int(offset) + count <= memory.byteCount, "Memory access out of bounds")
+            precondition(count >= 0 && offset <= UInt(memory.byteCount) && count <= memory.byteCount - Int(offset), "Memory access out of bounds")
+            if count == 0 {
+                return try body(UnsafeMutableRawBufferPointer(start: nil, count: 0))
+            }
             guard let base = memory.baseAddress else {
                 preconditionFailure("Memory has no base address")
             }

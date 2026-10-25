@@ -1,11 +1,19 @@
 /// A write/read-able view representation of WebAssembly Memory instance
 public protocol GuestMemory {
+    /// A bounded host can expose its current linear-memory length so WASI can
+    /// reject guest-controlled pointer ranges before using unsafe views.
+    var guestMemoryByteCount: Int? { get }
     /// Executes the given closure with a mutable buffer pointer to the host memory region mapped as guest memory.
     func withUnsafeMutableBufferPointer<T>(
         offset: UInt,
         count: Int,
         _ body: (UnsafeMutableRawBufferPointer) throws -> T
     ) rethrows -> T
+}
+
+extension GuestMemory {
+    /// Retains source compatibility for existing unbounded/embedded adapters.
+    public var guestMemoryByteCount: Int? { nil }
 }
 
 /// A pointer-referenceable type that is intended to be pointee of ``UnsafeGuestPointer``
